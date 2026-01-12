@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\arosano\Desktop\ARamps\build\CMakeFiles\9dc632679c0eca6dfd778345f76332a3\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{BE207551-28E0-3F8D-8BBE-59261877DC02}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

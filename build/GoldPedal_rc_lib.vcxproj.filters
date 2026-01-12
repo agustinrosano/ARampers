@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\arosano\Desktop\ARamps\build\CMakeFiles\b0d1df1aa232a251b01194cbe07fe97c\GoldPedal_resources.rc.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\arosano\Desktop\ARamps\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="C:\Users\arosano\Desktop\ARamps\build\GoldPedal_artefacts\JuceLibraryCode\GoldPedal_resources.rc">
+      <Filter>Source Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{BE207551-28E0-3F8D-8BBE-59261877DC02}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{D001320E-2896-3A91-A273-5B151238DB96}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
