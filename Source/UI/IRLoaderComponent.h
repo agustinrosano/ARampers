@@ -15,6 +15,6 @@ public:
 private:
     juce::TextButton loadButton { "Load IR" };
     juce::Label fileLabel;
-
+// a
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(IRLoaderComponent)
 };
