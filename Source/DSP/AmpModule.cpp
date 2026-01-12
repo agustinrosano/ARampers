@@ -15,7 +15,7 @@ void AmpModule::prepare(double newSampleRate, int blockSize, int numChannels)
     waveShaper.functionToUse = [] (float x) { return std::tanh(x); };
 
     highPass.prepare(spec);
-    highPass.state = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 80.0);
+    highPass.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 80.0);
 
     toneFilter.prepare(spec);
     toneFilter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);

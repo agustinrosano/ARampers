@@ -16,6 +16,12 @@ GoldPedalAudioProcessorEditor::GoldPedalAudioProcessorEditor(GoldPedalAudioProce
 {
     setSize(900, 520);
 
+    titleLabel.setText("ACR-AMPER", juce::dontSendNotification);
+    titleLabel.setJustificationType(juce::Justification::centredLeft);
+    titleLabel.setFont(juce::Font(18.0f, juce::Font::bold));
+    titleLabel.setColour(juce::Label::textColourId, juce::Colours::whitesmoke);
+    addAndMakeVisible(titleLabel);
+
     addAndMakeVisible(presetBar);
     addAndMakeVisible(irLoader);
 
@@ -93,6 +99,8 @@ void GoldPedalAudioProcessorEditor::resized()
     auto area = getLocalBounds().reduced(10);
 
     auto presetArea = area.removeFromTop(40);
+    auto titleArea = presetArea.removeFromLeft(160);
+    titleLabel.setBounds(titleArea);
     presetBar.setBounds(presetArea);
 
     auto moduleArea = area.removeFromTop(240);

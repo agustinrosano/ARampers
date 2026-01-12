@@ -20,6 +20,7 @@ private:
     juce::AudioProcessorValueTreeState& apvts;
 
     PresetBarComponent presetBar;
+    juce::Label titleLabel;
     IRLoaderComponent irLoader;
 
     PedalModuleComponent gateModule;

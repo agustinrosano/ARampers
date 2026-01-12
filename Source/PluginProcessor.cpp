@@ -374,3 +374,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::cre
 
     return { params.begin(), params.end() };
 }
+
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new GoldPedalAudioProcessor();
+}

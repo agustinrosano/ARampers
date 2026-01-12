@@ -19,10 +19,12 @@ juce_add_plugin(GoldPedal
     IS_MIDI_EFFECT FALSE
     MICROPHONE_PERMISSION_ENABLED TRUE
     FORMATS VST3 Standalone
-    PRODUCT_NAME "GoldPedal"
+    PRODUCT_NAME "ACR-AMPER"
     PLUGIN_MANUFACTURER_CODE GldM
     PLUGIN_CODE Gpdl
 )
+
+juce_generate_juce_header(GoldPedal)
 
 target_sources(GoldPedal PRIVATE
     Source/PluginProcessor.cpp
