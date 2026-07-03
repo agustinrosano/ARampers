@@ -17,6 +17,7 @@ public:
     std::function<void()> onPrevClicked;
     std::function<void()> onNextClicked;
 
+    void paint(juce::Graphics& g) override;
     void resized() override;
 
 private:

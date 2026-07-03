@@ -1,4 +1,5 @@
 #include "PedalModuleComponent.h"
+#include "GoldLookAndFeel.h"
 
 PedalModuleComponent::PedalModuleComponent(juce::AudioProcessorValueTreeState& state,
                                            const juce::String& title,
@@ -8,6 +9,7 @@ PedalModuleComponent::PedalModuleComponent(juce::AudioProcessorValueTreeState& s
 {
     titleLabel.setText(title, juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
+    titleLabel.setColour(juce::Label::textColourId, Theme::textPrimary);
     addAndMakeVisible(titleLabel);
 
     bypassButton.setButtonText("Bypass");
@@ -22,6 +24,7 @@ PedalModuleComponent::PedalModuleComponent(juce::AudioProcessorValueTreeState& s
         configureSlider(control->slider);
         control->label.setText(knob.label, juce::dontSendNotification);
         control->label.setJustificationType(juce::Justification::centred);
+        control->label.setColour(juce::Label::textColourId, Theme::textSecondary);
 
         addAndMakeVisible(control->label);
         addAndMakeVisible(control->slider);
@@ -33,19 +36,32 @@ PedalModuleComponent::PedalModuleComponent(juce::AudioProcessorValueTreeState& s
     }
 }
 
+void PedalModuleComponent::paint(juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().toFloat().reduced(1.0f);
+    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.brighter(0.08f), bounds.getX(), bounds.getY(),
+                                           Theme::panel.darker(0.08f), bounds.getRight(), bounds.getBottom(), false));
+    g.fillRoundedRectangle(bounds, 20.0f);
+    g.setColour(Theme::panelOutline);
+    g.drawRoundedRectangle(bounds, 20.0f, 1.0f);
+
+    g.setColour(Theme::accent.withAlpha(0.08f));
+    g.fillRoundedRectangle(bounds.removeFromTop(42.0f), 20.0f);
+}
+
 void PedalModuleComponent::configureSlider(juce::Slider& slider)
 {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 18);
 }
 
 void PedalModuleComponent::resized()
 {
-    auto area = getLocalBounds().reduced(6);
-    auto header = area.removeFromTop(40);
+    auto area = getLocalBounds().reduced(12);
+    auto header = area.removeFromTop(48);
 
-    titleLabel.setBounds(header.removeFromTop(20));
-    bypassButton.setBounds(header.removeFromTop(20));
+    titleLabel.setBounds(header.removeFromTop(22));
+    bypassButton.setBounds(header.removeFromTop(24));
 
     if (knobControls.empty())
         return;

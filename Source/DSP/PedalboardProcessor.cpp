@@ -2,7 +2,7 @@
 
 PedalboardProcessor::PedalboardProcessor()
 {
-    chain = { &inputGain, &noiseGate, &drive, &amp, &ir, &eq, &outputGain };
+    chain = { &inputGain, &noiseGate, &nam, &ir, &eq, &outputGain };
 }
 
 void PedalboardProcessor::prepare(double sampleRate, int blockSize, int numChannels)

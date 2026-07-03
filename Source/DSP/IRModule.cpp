@@ -35,6 +35,12 @@ void IRModule::loadIRFile(const juce::File& file)
     hasIR.store(true, std::memory_order_relaxed);
 }
 
+void IRModule::clearIR()
+{
+    loadedFileName.clear();
+    hasIR.store(false, std::memory_order_relaxed);
+}
+
 bool IRModule::hasImpulseResponse() const
 {
     return hasIR.load(std::memory_order_relaxed);

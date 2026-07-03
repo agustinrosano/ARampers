@@ -1,6 +1,25 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+constexpr auto stateModelPath = "loadedModelPath";
+constexpr auto stateIRPath = "loadedIRPath";
+constexpr auto presetBankRootTag = "ADR_AMPER_PRESET_BANK";
+constexpr auto legacyPresetBankRootTag = "ACR_AMPER_PRESET_BANK";
+constexpr auto appDataFolderName = "ADR-AMPER";
+constexpr auto legacyAppDataFolderName = "ACR-AMPER";
+constexpr auto presetSlotTag = "SLOT";
+constexpr auto emptySlotName = "Empty slot";
+
+juce::File getLegacyUserPresetBankFile()
+{
+    auto directory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                         .getChildFile(legacyAppDataFolderName);
+    return directory.getChildFile("preset-bank.xml");
+}
+}
+
 GoldPedalAudioProcessor::GoldPedalAudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
@@ -12,12 +31,7 @@ GoldPedalAudioProcessor::GoldPedalAudioProcessor()
     paramRefs.gateThreshold = apvts.getRawParameterValue(ParamIDs::gateThreshold);
     paramRefs.gateRelease = apvts.getRawParameterValue(ParamIDs::gateRelease);
     paramRefs.gateBypass = apvts.getRawParameterValue(ParamIDs::gateBypass);
-    paramRefs.driveAmount = apvts.getRawParameterValue(ParamIDs::driveAmount);
-    paramRefs.driveTone = apvts.getRawParameterValue(ParamIDs::driveTone);
-    paramRefs.driveBypass = apvts.getRawParameterValue(ParamIDs::driveBypass);
-    paramRefs.ampGain = apvts.getRawParameterValue(ParamIDs::ampGain);
-    paramRefs.ampTone = apvts.getRawParameterValue(ParamIDs::ampTone);
-    paramRefs.ampBypass = apvts.getRawParameterValue(ParamIDs::ampBypass);
+    paramRefs.modelBypass = apvts.getRawParameterValue(ParamIDs::modelBypass);
     paramRefs.irMix = apvts.getRawParameterValue(ParamIDs::irMix);
     paramRefs.irBypass = apvts.getRawParameterValue(ParamIDs::irBypass);
     paramRefs.eqLow = apvts.getRawParameterValue(ParamIDs::eqLow);
@@ -28,6 +42,11 @@ GoldPedalAudioProcessor::GoldPedalAudioProcessor()
     paramRefs.outputBypass = apvts.getRawParameterValue(ParamIDs::outputBypass);
 
     buildFactoryPresets();
+
+    for (size_t index = 0; index < userPresetSlots.size(); ++index)
+        userPresetSlots[index].info.name = juce::String(emptySlotName) + " " + juce::String(static_cast<int>(index + 1));
+
+    loadUserPresetBankFromDisk();
 }
 
 GoldPedalAudioProcessor::~GoldPedalAudioProcessor() = default;
@@ -115,11 +134,13 @@ void GoldPedalAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     const int totalNumInputChannels = getTotalNumInputChannels();
     const int totalNumOutputChannels = getTotalNumOutputChannels();
 
-    for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear(i, 0, buffer.getNumSamples());
+    for (int channel = totalNumInputChannels; channel < totalNumOutputChannels; ++channel)
+        buffer.clear(channel, 0, buffer.getNumSamples());
 
+    inputMeterLevel.store(measureBufferPeak(buffer), std::memory_order_relaxed);
     updateParametersFromAPVTS();
     pedalboard.process(buffer);
+    outputMeterLevel.store(measureBufferPeak(buffer), std::memory_order_relaxed);
 }
 
 bool GoldPedalAudioProcessor::hasEditor() const
@@ -134,21 +155,14 @@ juce::AudioProcessorEditor* GoldPedalAudioProcessor::createEditor()
 
 void GoldPedalAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    if (auto state = apvts.copyState(); state.isValid())
-    {
-        if (auto xml = state.createXml())
-            copyXmlToBinary(*xml, destData);
-    }
+    if (auto xml = createStateXmlWithAssets())
+        copyXmlToBinary(*xml, destData);
 }
 
 void GoldPedalAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary(data, sizeInBytes))
-    {
-        auto newState = juce::ValueTree::fromXml(*xml);
-        if (newState.isValid())
-            apvts.replaceState(newState);
-    }
+        applyStateXml(*xml);
 }
 
 void GoldPedalAudioProcessor::updateParametersFromAPVTS()
@@ -160,13 +174,7 @@ void GoldPedalAudioProcessor::updateParametersFromAPVTS()
     pedalboard.noiseGate.setReleaseMs(paramRefs.gateRelease->load());
     pedalboard.noiseGate.setBypass(paramRefs.gateBypass->load() > 0.5f);
 
-    pedalboard.drive.setDrive(paramRefs.driveAmount->load());
-    pedalboard.drive.setTone(paramRefs.driveTone->load());
-    pedalboard.drive.setBypass(paramRefs.driveBypass->load() > 0.5f);
-
-    pedalboard.amp.setDrive(paramRefs.ampGain->load());
-    pedalboard.amp.setTone(paramRefs.ampTone->load());
-    pedalboard.amp.setBypass(paramRefs.ampBypass->load() > 0.5f);
+    pedalboard.nam.setBypass(paramRefs.modelBypass->load() > 0.5f);
 
     pedalboard.ir.setMix(paramRefs.irMix->load());
     pedalboard.ir.setBypass(paramRefs.irBypass->load() > 0.5f);
@@ -184,32 +192,76 @@ void GoldPedalAudioProcessor::loadIRFile(const juce::File& file)
 {
     pedalboard.ir.loadIRFile(file);
     irFileName = file.getFileName();
+    irFilePath = file.getFullPathName();
+}
+
+void GoldPedalAudioProcessor::clearIRFile()
+{
+    pedalboard.ir.clearIR();
+    irFileName.clear();
+    irFilePath.clear();
 }
 
 juce::String GoldPedalAudioProcessor::getLoadedIRName() const
 {
-    if (irFileName.isEmpty())
-        return "No IR loaded";
+    return irFileName.isEmpty() ? "No IR loaded" : irFileName;
+}
 
-    return irFileName;
+juce::String GoldPedalAudioProcessor::getLoadedIRPath() const
+{
+    return irFilePath;
+}
+
+bool GoldPedalAudioProcessor::loadNAMModelFile(const juce::File& file)
+{
+    return pedalboard.nam.loadModelFile(file);
+}
+
+void GoldPedalAudioProcessor::clearNAMModel()
+{
+    pedalboard.nam.clearModel();
+}
+
+juce::String GoldPedalAudioProcessor::getLoadedNAMName() const
+{
+    return pedalboard.nam.getLoadedFileName();
+}
+
+juce::String GoldPedalAudioProcessor::getLoadedNAMArchitecture() const
+{
+    return pedalboard.nam.getArchitectureName();
+}
+
+juce::String GoldPedalAudioProcessor::getLoadedNAMStatus() const
+{
+    return pedalboard.nam.getModelStatusText();
+}
+
+bool GoldPedalAudioProcessor::hasNAMLoadError() const
+{
+    return pedalboard.nam.getLastError().isNotEmpty();
+}
+
+float GoldPedalAudioProcessor::getInputMeterLevel() const
+{
+    return inputMeterLevel.load(std::memory_order_relaxed);
+}
+
+float GoldPedalAudioProcessor::getOutputMeterLevel() const
+{
+    return outputMeterLevel.load(std::memory_order_relaxed);
 }
 
 void GoldPedalAudioProcessor::savePresetToFile(const juce::File& file)
 {
-    auto state = apvts.copyState();
-    if (auto xml = state.createXml())
+    if (auto xml = createStateXmlWithAssets())
         xml->writeTo(file);
 }
 
 void GoldPedalAudioProcessor::loadPresetFromFile(const juce::File& file)
 {
-    auto xml = juce::XmlDocument::parse(file);
-    if (xml == nullptr)
-        return;
-
-    auto newState = juce::ValueTree::fromXml(*xml);
-    if (newState.isValid())
-        apvts.replaceState(newState);
+    if (auto xml = juce::XmlDocument::parse(file))
+        applyStateXml(*xml);
 }
 
 juce::StringArray GoldPedalAudioProcessor::getFactoryPresetNames() const
@@ -230,6 +282,77 @@ void GoldPedalAudioProcessor::applyFactoryPreset(int index)
     }
 }
 
+int GoldPedalAudioProcessor::getNumUserPresetSlots() const
+{
+    return static_cast<int>(userPresetSlots.size());
+}
+
+GoldPedalAudioProcessor::UserPresetSlotInfo GoldPedalAudioProcessor::getUserPresetSlotInfo(int index) const
+{
+    if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
+        return {};
+
+    return userPresetSlots[static_cast<size_t>(index)].info;
+}
+
+void GoldPedalAudioProcessor::storeUserPresetSlot(int index)
+{
+    if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
+        return;
+
+    auto xml = createStateXmlWithAssets();
+    if (xml == nullptr)
+        return;
+
+    auto& slot = userPresetSlots[static_cast<size_t>(index)];
+    if (!slot.info.occupied || slot.info.name.startsWithIgnoreCase(emptySlotName))
+    {
+        const auto suggestedName = pedalboard.nam.hasModel() ? pedalboard.nam.getLoadedFileName()
+                                                             : juce::String("Preset ") + juce::String(index + 1);
+        slot.info.name = suggestedName;
+    }
+
+    slot.info.occupied = true;
+    slot.info.modelName = pedalboard.nam.hasModel() ? pedalboard.nam.getLoadedFileName() : "NAM only";
+    slot.info.irName = irFileName.isNotEmpty() ? irFileName : "No IR";
+    slot.serializedState = xml->toString();
+    saveUserPresetBankToDisk();
+}
+
+void GoldPedalAudioProcessor::loadUserPresetSlot(int index)
+{
+    if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
+        return;
+
+    const auto& slot = userPresetSlots[static_cast<size_t>(index)];
+    if (!slot.info.occupied || slot.serializedState.isEmpty())
+        return;
+
+    if (auto xml = juce::XmlDocument::parse(slot.serializedState))
+        applyStateXml(*xml);
+}
+
+void GoldPedalAudioProcessor::clearUserPresetSlot(int index)
+{
+    if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
+        return;
+
+    auto& slot = userPresetSlots[static_cast<size_t>(index)];
+    slot = {};
+    slot.info.name = juce::String(emptySlotName) + " " + juce::String(index + 1);
+    saveUserPresetBankToDisk();
+}
+
+void GoldPedalAudioProcessor::renameUserPresetSlot(int index, const juce::String& newName)
+{
+    if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
+        return;
+
+    auto& slot = userPresetSlots[static_cast<size_t>(index)];
+    slot.info.name = newName.trim().isEmpty() ? slot.info.name : newName.trim();
+    saveUserPresetBankToDisk();
+}
+
 void GoldPedalAudioProcessor::buildFactoryPresets()
 {
     factoryPresets.clear();
@@ -241,12 +364,7 @@ void GoldPedalAudioProcessor::buildFactoryPresets()
             { ParamIDs::gateThreshold, -55.0f },
             { ParamIDs::gateRelease, 120.0f },
             { ParamIDs::gateBypass, 0.0f },
-            { ParamIDs::driveAmount, 0.10f },
-            { ParamIDs::driveTone, 0.60f },
-            { ParamIDs::driveBypass, 0.0f },
-            { ParamIDs::ampGain, 0.25f },
-            { ParamIDs::ampTone, 0.60f },
-            { ParamIDs::ampBypass, 0.0f },
+            { ParamIDs::modelBypass, 0.0f },
             { ParamIDs::irMix, 0.70f },
             { ParamIDs::irBypass, 0.0f },
             { ParamIDs::eqLow, 1.5f },
@@ -265,12 +383,7 @@ void GoldPedalAudioProcessor::buildFactoryPresets()
             { ParamIDs::gateThreshold, -50.0f },
             { ParamIDs::gateRelease, 140.0f },
             { ParamIDs::gateBypass, 0.0f },
-            { ParamIDs::driveAmount, 0.45f },
-            { ParamIDs::driveTone, 0.55f },
-            { ParamIDs::driveBypass, 0.0f },
-            { ParamIDs::ampGain, 0.55f },
-            { ParamIDs::ampTone, 0.50f },
-            { ParamIDs::ampBypass, 0.0f },
+            { ParamIDs::modelBypass, 0.0f },
             { ParamIDs::irMix, 0.85f },
             { ParamIDs::irBypass, 0.0f },
             { ParamIDs::eqLow, 1.0f },
@@ -289,12 +402,7 @@ void GoldPedalAudioProcessor::buildFactoryPresets()
             { ParamIDs::gateThreshold, -48.0f },
             { ParamIDs::gateRelease, 160.0f },
             { ParamIDs::gateBypass, 0.0f },
-            { ParamIDs::driveAmount, 0.70f },
-            { ParamIDs::driveTone, 0.50f },
-            { ParamIDs::driveBypass, 0.0f },
-            { ParamIDs::ampGain, 0.70f },
-            { ParamIDs::ampTone, 0.55f },
-            { ParamIDs::ampBypass, 0.0f },
+            { ParamIDs::modelBypass, 0.0f },
             { ParamIDs::irMix, 0.90f },
             { ParamIDs::irBypass, 0.0f },
             { ParamIDs::eqLow, 0.5f },
@@ -309,6 +417,119 @@ void GoldPedalAudioProcessor::buildFactoryPresets()
     factoryPresetNames.clear();
     for (const auto& preset : factoryPresets)
         factoryPresetNames.add(preset.name);
+}
+
+std::unique_ptr<juce::XmlElement> GoldPedalAudioProcessor::createStateXmlWithAssets()
+{
+    auto state = apvts.copyState();
+    if (!state.isValid())
+        return {};
+
+    auto xml = state.createXml();
+    if (xml == nullptr)
+        return {};
+
+    xml->setAttribute(stateModelPath, pedalboard.nam.getLoadedFilePath());
+    xml->setAttribute(stateIRPath, irFilePath);
+    return xml;
+}
+
+void GoldPedalAudioProcessor::applyStateXml(const juce::XmlElement& xml)
+{
+    auto newState = juce::ValueTree::fromXml(xml);
+    if (newState.isValid())
+        apvts.replaceState(newState);
+
+    const auto modelPath = xml.getStringAttribute(stateModelPath);
+    if (modelPath.isNotEmpty())
+    {
+        const auto file = juce::File(modelPath);
+        if (file.existsAsFile())
+            loadNAMModelFile(file);
+        else
+            clearNAMModel();
+    }
+    else
+    {
+        clearNAMModel();
+    }
+
+    const auto savedIRPath = xml.getStringAttribute(stateIRPath);
+    if (savedIRPath.isNotEmpty())
+    {
+        const auto file = juce::File(savedIRPath);
+        if (file.existsAsFile())
+            loadIRFile(file);
+        else
+            clearIRFile();
+    }
+    else
+    {
+        clearIRFile();
+    }
+}
+
+juce::File GoldPedalAudioProcessor::getUserPresetBankFile()
+{
+    auto directory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                         .getChildFile(appDataFolderName);
+    directory.createDirectory();
+    return directory.getChildFile("preset-bank.xml");
+}
+
+void GoldPedalAudioProcessor::loadUserPresetBankFromDisk()
+{
+    auto file = getUserPresetBankFile();
+    if (!file.existsAsFile())
+        file = getLegacyUserPresetBankFile();
+
+    if (!file.existsAsFile())
+        return;
+
+    auto xml = juce::XmlDocument::parse(file);
+    if (xml == nullptr || (!xml->hasTagName(presetBankRootTag) && !xml->hasTagName(legacyPresetBankRootTag)))
+        return;
+
+    forEachXmlChildElementWithTagName(*xml, slotXml, presetSlotTag)
+    {
+        const auto index = slotXml->getIntAttribute("index", -1);
+        if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
+            continue;
+
+        auto& slot = userPresetSlots[static_cast<size_t>(index)];
+        slot.info.name = slotXml->getStringAttribute("name", slot.info.name);
+        slot.info.modelName = slotXml->getStringAttribute("modelName");
+        slot.info.irName = slotXml->getStringAttribute("irName");
+        slot.info.occupied = slotXml->getBoolAttribute("occupied", false);
+
+        if (auto* stateXml = slotXml->getFirstChildElement())
+            slot.serializedState = stateXml->toString();
+    }
+}
+
+void GoldPedalAudioProcessor::saveUserPresetBankToDisk() const
+{
+    juce::XmlElement xml(presetBankRootTag);
+
+    for (size_t index = 0; index < userPresetSlots.size(); ++index)
+    {
+        const auto& slot = userPresetSlots[index];
+
+        juce::XmlElement* slotXml = xml.createNewChildElement(presetSlotTag);
+        slotXml->setAttribute("index", static_cast<int>(index));
+        slotXml->setAttribute("name", slot.info.name);
+        slotXml->setAttribute("modelName", slot.info.modelName);
+        slotXml->setAttribute("irName", slot.info.irName);
+        slotXml->setAttribute("occupied", slot.info.occupied);
+
+        if (slot.info.occupied && slot.serializedState.isNotEmpty())
+        {
+            if (auto stateXml = juce::XmlDocument::parse(slot.serializedState))
+                slotXml->addChildElement(new juce::XmlElement(*stateXml));
+        }
+    }
+
+    xml.writeTo(getUserPresetBankFile());
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::createParameterLayout()
@@ -330,23 +551,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         ParamIDs::gateBypass, "Gate Bypass", false));
 
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        ParamIDs::driveAmount, "Drive",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.2f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        ParamIDs::driveTone, "Drive Tone",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
-        ParamIDs::driveBypass, "Drive Bypass", false));
-
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        ParamIDs::ampGain, "Amp Gain",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.3f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        ParamIDs::ampTone, "Amp Tone",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.6f));
-    params.push_back(std::make_unique<juce::AudioParameterBool>(
-        ParamIDs::ampBypass, "Amp Bypass", false));
+        ParamIDs::modelBypass, "Model Bypass", false));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         ParamIDs::irMix, "IR Mix",
@@ -373,6 +579,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::cre
         ParamIDs::outputBypass, "Output Bypass", false));
 
     return { params.begin(), params.end() };
+}
+
+float GoldPedalAudioProcessor::measureBufferPeak(const juce::AudioBuffer<float>& buffer)
+{
+    float peak = 0.0f;
+
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+        peak = juce::jmax(peak, buffer.getMagnitude(channel, 0, buffer.getNumSamples()));
+
+    return peak;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

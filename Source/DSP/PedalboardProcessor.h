@@ -2,8 +2,7 @@
 
 #include "GainModule.h"
 #include "NoiseGateModule.h"
-#include "DriveModule.h"
-#include "AmpModule.h"
+#include "NAMModule.h"
 #include "IRModule.h"
 #include "EQModule.h"
 #include <array>
@@ -19,12 +18,11 @@ public:
 
     GainModule inputGain;
     NoiseGateModule noiseGate;
-    DriveModule drive;
-    AmpModule amp;
+    NAMModule nam;
     IRModule ir;
     EQModule eq;
     GainModule outputGain;
 
 private:
-    std::array<Module*, 7> chain;
+    std::array<Module*, 6> chain;
 };

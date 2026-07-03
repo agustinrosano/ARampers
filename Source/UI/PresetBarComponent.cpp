@@ -1,4 +1,5 @@
 #include "PresetBarComponent.h"
+#include "GoldLookAndFeel.h"
 
 PresetBarComponent::PresetBarComponent()
 {
@@ -57,9 +58,22 @@ void PresetBarComponent::setSelectedIndex(int index)
     presetBox.setSelectedItemIndex(index, juce::dontSendNotification);
 }
 
+void PresetBarComponent::paint(juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().toFloat().reduced(1.0f);
+    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.withAlpha(0.95f), bounds.getX(), bounds.getY(),
+                                           Theme::panel.darker(0.10f), bounds.getRight(), bounds.getBottom(), false));
+    g.fillRoundedRectangle(bounds, 16.0f);
+    g.setColour(Theme::panelOutline);
+    g.drawRoundedRectangle(bounds, 16.0f, 1.0f);
+
+    g.setColour(Theme::accent.withAlpha(0.08f));
+    g.fillRoundedRectangle(bounds.removeFromTop(22.0f), 16.0f);
+}
+
 void PresetBarComponent::resized()
 {
-    auto area = getLocalBounds().reduced(6);
+    auto area = getLocalBounds().reduced(8);
 
     auto navArea = area.removeFromRight(120);
     prevButton.setBounds(navArea.removeFromLeft(60).reduced(2));

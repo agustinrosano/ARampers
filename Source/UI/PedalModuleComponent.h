@@ -16,6 +16,7 @@ public:
                          const juce::String& bypassParamId,
                          std::initializer_list<KnobConfig> knobs);
 
+    void paint(juce::Graphics& g) override;
     void resized() override;
 
 private:

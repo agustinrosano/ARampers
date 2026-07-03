@@ -12,6 +12,7 @@ public:
 
     void setMix(float newMix);
     void loadIRFile(const juce::File& file);
+    void clearIR();
     bool hasImpulseResponse() const;
     juce::String getLoadedFileName() const;
 
