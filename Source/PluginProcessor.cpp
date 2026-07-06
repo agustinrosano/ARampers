@@ -10,6 +10,7 @@ constexpr auto legacyPresetBankRootTag = "ACR_AMPER_PRESET_BANK";
 constexpr auto appDataFolderName = "ADR-AMPER";
 constexpr auto legacyAppDataFolderName = "ACR-AMPER";
 constexpr auto presetSlotTag = "SLOT";
+constexpr auto presetStateFileName = "preset.xml";
 constexpr auto emptySlotName = "Empty slot";
 
 juce::File getLegacyUserPresetBankFile()
@@ -17,6 +18,20 @@ juce::File getLegacyUserPresetBankFile()
     auto directory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                          .getChildFile(legacyAppDataFolderName);
     return directory.getChildFile("preset-bank.xml");
+}
+
+juce::File getUserPresetRootDirectory()
+{
+    auto directory = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                         .getChildFile(appDataFolderName)
+                         .getChildFile("Presets");
+    directory.createDirectory();
+    return directory;
+}
+
+juce::File getUserPresetSlotDirectory(int index)
+{
+    return getUserPresetRootDirectory().getChildFile(juce::String::charToString(static_cast<juce::juce_wchar>('A' + index)));
 }
 
 void normaliseStandaloneMonoInputToStereo(juce::AudioBuffer<float>& buffer, int totalNumInputChannels, int totalNumOutputChannels)
@@ -49,6 +64,12 @@ void normaliseStandaloneMonoInputToStereo(juce::AudioBuffer<float>& buffer, int 
    #else
     juce::ignoreUnused(buffer, totalNumInputChannels, totalNumOutputChannels);
    #endif
+}
+
+float deriveGateReleaseMsFromThreshold(float thresholdDb)
+{
+    const auto clamped = juce::jlimit(-60.0f, 0.0f, thresholdDb);
+    return juce::jmap(clamped, -60.0f, 0.0f, 180.0f, 70.0f);
 }
 }
 
@@ -203,9 +224,10 @@ void GoldPedalAudioProcessor::updateParametersFromAPVTS()
     pedalboard.inputGain.setGainDecibels(paramRefs.inputGain->load());
     pedalboard.inputGain.setBypass(paramRefs.inputBypass->load() > 0.5f);
 
-    pedalboard.noiseGate.setThresholdDb(paramRefs.gateThreshold->load());
-    pedalboard.noiseGate.setReleaseMs(paramRefs.gateRelease->load());
-    pedalboard.noiseGate.setBypass(paramRefs.gateBypass->load() > 0.5f);
+    const auto gateThreshold = paramRefs.gateThreshold->load();
+    pedalboard.noiseGate.setThresholdDb(gateThreshold);
+    pedalboard.noiseGate.setReleaseMs(deriveGateReleaseMsFromThreshold(gateThreshold));
+    pedalboard.noiseGate.setBypass(gateThreshold <= -59.5f);
 
     pedalboard.nam.setBypass(paramRefs.modelBypass->load() > 0.5f);
 
@@ -349,7 +371,21 @@ void GoldPedalAudioProcessor::storeUserPresetSlot(int index)
     slot.info.modelName = pedalboard.nam.hasModel() ? pedalboard.nam.getLoadedFileName() : "NAM only";
     slot.info.irName = irFileName.isNotEmpty() ? irFileName : "No IR";
     slot.serializedState = xml->toString();
-    saveUserPresetBankToDisk();
+
+    auto slotDirectory = getUserPresetSlotDirectory(index);
+    slotDirectory.createDirectory();
+
+    juce::XmlElement slotXml(presetSlotTag);
+    slotXml.setAttribute("index", index);
+    slotXml.setAttribute("name", slot.info.name);
+    slotXml.setAttribute("modelName", slot.info.modelName);
+    slotXml.setAttribute("irName", slot.info.irName);
+    slotXml.setAttribute("occupied", slot.info.occupied);
+
+    if (auto stateXml = juce::XmlDocument::parse(slot.serializedState))
+        slotXml.addChildElement(new juce::XmlElement(*stateXml));
+
+    slotXml.writeTo(slotDirectory.getChildFile(presetStateFileName));
 }
 
 void GoldPedalAudioProcessor::loadUserPresetSlot(int index)
@@ -357,7 +393,23 @@ void GoldPedalAudioProcessor::loadUserPresetSlot(int index)
     if (index < 0 || index >= static_cast<int>(userPresetSlots.size()))
         return;
 
-    const auto& slot = userPresetSlots[static_cast<size_t>(index)];
+    auto& slot = userPresetSlots[static_cast<size_t>(index)];
+
+    if (slot.serializedState.isEmpty())
+    {
+        const auto slotFile = getUserPresetSlotDirectory(index).getChildFile(presetStateFileName);
+        if (auto xml = juce::XmlDocument::parse(slotFile))
+        {
+            slot.info.name = xml->getStringAttribute("name", slot.info.name);
+            slot.info.modelName = xml->getStringAttribute("modelName");
+            slot.info.irName = xml->getStringAttribute("irName");
+            slot.info.occupied = xml->getBoolAttribute("occupied", false);
+
+            if (auto* stateXml = xml->getFirstChildElement())
+                slot.serializedState = stateXml->toString();
+        }
+    }
+
     if (!slot.info.occupied || slot.serializedState.isEmpty())
         return;
 
@@ -373,7 +425,10 @@ void GoldPedalAudioProcessor::clearUserPresetSlot(int index)
     auto& slot = userPresetSlots[static_cast<size_t>(index)];
     slot = {};
     slot.info.name = juce::String(emptySlotName) + " " + juce::String(index + 1);
-    saveUserPresetBankToDisk();
+
+    auto slotDirectory = getUserPresetSlotDirectory(index);
+    if (slotDirectory.isDirectory())
+        slotDirectory.deleteRecursively();
 }
 
 void GoldPedalAudioProcessor::renameUserPresetSlot(int index, const juce::String& newName)
@@ -383,7 +438,6 @@ void GoldPedalAudioProcessor::renameUserPresetSlot(int index, const juce::String
 
     auto& slot = userPresetSlots[static_cast<size_t>(index)];
     slot.info.name = newName.trim().isEmpty() ? slot.info.name : newName.trim();
-    saveUserPresetBankToDisk();
 }
 
 void GoldPedalAudioProcessor::buildFactoryPresets()
@@ -512,6 +566,33 @@ juce::File GoldPedalAudioProcessor::getUserPresetBankFile()
 
 void GoldPedalAudioProcessor::loadUserPresetBankFromDisk()
 {
+    auto presetRoot = getUserPresetRootDirectory();
+    bool loadedFromFolders = false;
+
+    for (int index = 0; index < 4 && index < static_cast<int>(userPresetSlots.size()); ++index)
+    {
+        const auto slotFile = getUserPresetSlotDirectory(index).getChildFile(presetStateFileName);
+        if (!slotFile.existsAsFile())
+            continue;
+
+        if (auto xml = juce::XmlDocument::parse(slotFile))
+        {
+            auto& slot = userPresetSlots[static_cast<size_t>(index)];
+            slot.info.name = xml->getStringAttribute("name", slot.info.name);
+            slot.info.modelName = xml->getStringAttribute("modelName");
+            slot.info.irName = xml->getStringAttribute("irName");
+            slot.info.occupied = xml->getBoolAttribute("occupied", false);
+
+            if (auto* stateXml = xml->getFirstChildElement())
+                slot.serializedState = stateXml->toString();
+
+            loadedFromFolders = true;
+        }
+    }
+
+    if (loadedFromFolders)
+        return;
+
     auto file = getUserPresetBankFile();
     if (!file.existsAsFile())
         file = getLegacyUserPresetBankFile();
@@ -542,27 +623,7 @@ void GoldPedalAudioProcessor::loadUserPresetBankFromDisk()
 
 void GoldPedalAudioProcessor::saveUserPresetBankToDisk() const
 {
-    juce::XmlElement xml(presetBankRootTag);
-
-    for (size_t index = 0; index < userPresetSlots.size(); ++index)
-    {
-        const auto& slot = userPresetSlots[index];
-
-        juce::XmlElement* slotXml = xml.createNewChildElement(presetSlotTag);
-        slotXml->setAttribute("index", static_cast<int>(index));
-        slotXml->setAttribute("name", slot.info.name);
-        slotXml->setAttribute("modelName", slot.info.modelName);
-        slotXml->setAttribute("irName", slot.info.irName);
-        slotXml->setAttribute("occupied", slot.info.occupied);
-
-        if (slot.info.occupied && slot.serializedState.isNotEmpty())
-        {
-            if (auto stateXml = juce::XmlDocument::parse(slot.serializedState))
-                slotXml->addChildElement(new juce::XmlElement(*stateXml));
-        }
-    }
-
-    xml.writeTo(getUserPresetBankFile());
+    juce::ignoreUnused(this);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::createParameterLayout()

@@ -11,22 +11,27 @@ GoldPedalAudioProcessorEditor::GoldPedalAudioProcessorEditor(GoldPedalAudioProce
       modelPanel(apvts, ParamIDs::modelBypass),
       irLoader(apvts, ParamIDs::irBypass),
       presetShelf(p.getNumUserPresetSlots()),
-      gateModule(apvts, "INPUT GATE", ParamIDs::gateBypass,
-                 { { "Threshold", ParamIDs::gateThreshold }, { "Release", ParamIDs::gateRelease } }),
       irModule(apvts, "CAB BLEND", ParamIDs::irBypass, { { "Blend", ParamIDs::irMix } }),
       eqModule(apvts, "EQ", ParamIDs::eqBypass,
                { { "Low", ParamIDs::eqLow }, { "Mid", ParamIDs::eqMid }, { "High", ParamIDs::eqHigh } })
 {
     setLookAndFeel(&lookAndFeel);
-    setSize(1000, 640);
+    setSize(1240, 820);
+    setResizable(true, true);
+    setResizeLimits(900, 680, 1600, 1100);
 
     titleLabel.setText("ADR - AMPER", juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centredLeft);
-    titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
+    titleLabel.setFont(juce::Font(29.0f, juce::Font::bold));
     titleLabel.setColour(juce::Label::textColourId, Theme::textPrimary);
     addAndMakeVisible(titleLabel);
 
-    subtitleLabel.setVisible(false);
+    subtitleLabel.setText("Load a NAM capture, pair it with an IR, then shape the level and EQ below.",
+                          juce::dontSendNotification);
+    subtitleLabel.setJustificationType(juce::Justification::centredLeft);
+    subtitleLabel.setFont(juce::Font(13.0f, juce::Font::plain));
+    subtitleLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
+    addAndMakeVisible(subtitleLabel);
 
     menuButton.setColour(juce::TextButton::textColourOffId, Theme::textPrimary);
     menuButton.onClick = [this]()
@@ -82,10 +87,10 @@ GoldPedalAudioProcessorEditor::GoldPedalAudioProcessorEditor(GoldPedalAudioProce
         addAndMakeVisible(*label);
     }
 
-    inputMeterLabel.setJustificationType(juce::Justification::centred);
+    inputMeterLabel.setJustificationType(juce::Justification::centredLeft);
     inputMeterLabel.setFont(juce::Font(10.0f, juce::Font::plain));
 
-    masterVolumeLabel.setJustificationType(juce::Justification::centred);
+    masterVolumeLabel.setJustificationType(juce::Justification::centredLeft);
     masterVolumeLabel.setFont(juce::Font(10.0f, juce::Font::plain));
 
     aboutLabel.setJustificationType(juce::Justification::centred);
@@ -102,7 +107,6 @@ GoldPedalAudioProcessorEditor::GoldPedalAudioProcessorEditor(GoldPedalAudioProce
 
     addAndMakeVisible(modelPanel);
     addAndMakeVisible(irLoader);
-    addAndMakeVisible(gateModule);
     addAndMakeVisible(presetShelf);
     addAndMakeVisible(inputMeter);
     addAndMakeVisible(outputMeter);
@@ -119,13 +123,14 @@ GoldPedalAudioProcessorEditor::GoldPedalAudioProcessorEditor(GoldPedalAudioProce
     outputBypassButton.setVisible(false);
 
     configureKnob(inputGainSlider, inputGainLabel, "INPUT");
+    configureKnob(gateThresholdSlider, gateThresholdLabel, "GATE");
     configureKnob(lowSlider, lowLabel, "BASS");
     configureKnob(midSlider, midLabel, "MIDDLE");
     configureKnob(highSlider, highLabel, "TREBLE");
     configureKnob(blendSlider, blendLabel, "CAB MIX");
     configureKnob(outputGainSlider, outputGainLabel, "OUTPUT");
 
-    for (auto* slider : { &inputGainSlider, &lowSlider, &midSlider, &highSlider, &outputGainSlider })
+    for (auto* slider : { &inputGainSlider, &gateThresholdSlider, &lowSlider, &midSlider, &highSlider, &outputGainSlider })
     {
         slider->setTextValueSuffix(" dB");
         slider->setNumDecimalPlacesToDisplay(1);
@@ -145,6 +150,8 @@ GoldPedalAudioProcessorEditor::GoldPedalAudioProcessorEditor(GoldPedalAudioProce
         apvts, ParamIDs::inputGain, inputGainSlider);
     inputBypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         apvts, ParamIDs::inputBypass, inputBypassButton);
+    gateThresholdAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        apvts, ParamIDs::gateThreshold, gateThresholdSlider);
     lowAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         apvts, ParamIDs::eqLow, lowSlider);
     midAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -216,83 +223,137 @@ void GoldPedalAudioProcessorEditor::paint(juce::Graphics& g)
                                            Theme::backgroundBottom, bounds.getX(), bounds.getBottom(), false));
     g.fillRect(bounds);
 
-    g.setColour(juce::Colours::white.withAlpha(0.03f));
-    g.fillRoundedRectangle(bounds.reduced(12.0f).removeFromTop(82.0f), 18.0f);
+    auto frame = bounds.reduced(14.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.16f));
+    g.fillRoundedRectangle(frame.translated(0.0f, 6.0f), 26.0f);
 
-    const auto toggleCenterY = eqBypassButton.getBounds().getCentreY();
+    g.setGradientFill(juce::ColourGradient(Theme::backgroundTop.brighter(0.08f), frame.getCentreX(), frame.getY(),
+                                           Theme::backgroundBottom.darker(0.08f), frame.getCentreX(), frame.getBottom(), false));
+    g.fillRoundedRectangle(frame, 26.0f);
+
     g.setColour(Theme::panelOutline.withAlpha(0.45f));
-    g.drawHorizontalLine(toggleCenterY, 30.0f, static_cast<float>(eqLineLabel.getRight() - 10));
-    g.drawHorizontalLine(toggleCenterY, static_cast<float>(nlmiiLineLabel.getX() + 10), static_cast<float>(getWidth() - 30));
+    g.drawRoundedRectangle(frame, 26.0f, 1.0f);
+
+    g.setColour(juce::Colours::white.withAlpha(0.035f));
+    g.fillRoundedRectangle(frame.reduced(2.0f).removeFromTop(88.0f), 24.0f);
+
+    paintStagePanel(g, inputStageBounds, "INPUT");
+    paintStagePanel(g, outputStageBounds, "OUTPUT");
+    paintControlStrip(g, controlStripBounds);
+    paintToggleStrip(g, toggleStripBounds);
+
+    if (! toggleStripBounds.isEmpty())
+    {
+        const auto toggleCenterY = eqBypassButton.getBounds().getCentreY();
+        g.setColour(Theme::panelOutline.withAlpha(0.45f));
+        g.drawHorizontalLine(toggleCenterY,
+                             static_cast<float>(toggleStripBounds.getX() + 22),
+                             static_cast<float>(eqLineLabel.getRight() - 10));
+        g.drawHorizontalLine(toggleCenterY,
+                             static_cast<float>(nlmiiLineLabel.getX() + 10),
+                             static_cast<float>(toggleStripBounds.getRight() - 22));
+    }
 }
 
 void GoldPedalAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds().reduced(20);
+    auto area = getLocalBounds().reduced(22);
 
-    auto header = area.removeFromTop(62);
-    menuButton.setBounds(header.removeFromLeft(66).reduced(0, 10));
-    header.removeFromLeft(12);
-    titleLabel.setBounds(header.removeFromLeft(270));
+    auto header = area.removeFromTop(82);
+    auto brandArea = header;
+    auto utilityArea = brandArea.removeFromRight(440);
 
-    auto rightHeader = header.removeFromRight(320);
-    auto aboutArea = rightHeader.removeFromRight(40);
-    aboutButton.setBounds(aboutArea.removeFromTop(32).reduced(4, 0));
-    aboutLabel.setBounds(aboutArea);
+    menuButton.setBounds(brandArea.removeFromLeft(82).removeFromTop(34));
+    brandArea.removeFromLeft(14);
+    titleLabel.setBounds(brandArea.removeFromTop(34));
+    subtitleLabel.setBounds(brandArea.removeFromTop(18));
 
-    rightHeader.removeFromRight(10);
+    auto aboutArea = utilityArea.removeFromRight(44);
+    aboutButton.setBounds(aboutArea.removeFromTop(30).reduced(4, 0));
+    aboutLabel.setBounds(aboutArea.removeFromTop(16));
 
-    auto outputArea = rightHeader.removeFromRight(128);
-    outputMeter.setBounds(outputArea.removeFromTop(12).reduced(0, 1));
-    outputArea.removeFromTop(4);
-    masterVolumeLabel.setBounds(outputArea);
+    utilityArea.removeFromRight(10);
 
-    rightHeader.removeFromRight(10);
+    const int meterGap = 12;
+    const int meterWidth = (utilityArea.getWidth() - meterGap) / 2;
+    inputStageBounds = utilityArea.removeFromLeft(meterWidth);
+    utilityArea.removeFromLeft(meterGap);
+    outputStageBounds = utilityArea;
 
-    auto inputArea = rightHeader.removeFromRight(128);
-    inputMeter.setBounds(inputArea.removeFromTop(12).reduced(0, 1));
-    inputArea.removeFromTop(4);
-    inputMeterLabel.setBounds(inputArea);
+    auto layoutMeterCard = [](juce::Rectangle<int> bounds, MeterComponent& meter, juce::Label& label)
+    {
+        auto inner = bounds.reduced(12, 10);
+        inner.removeFromTop(16);
+        meter.setBounds(inner.removeFromTop(12));
+        inner.removeFromTop(6);
+        label.setBounds(inner);
+    };
 
-    area.removeFromTop(12);
-
-    auto loaderRow = area.removeFromTop(84);
-    const int loaderGap = 16;
-    const int namWidth = (loaderRow.getWidth() - loaderGap) / 2;
-    modelPanel.setBounds(loaderRow.removeFromLeft(namWidth));
-    loaderRow.removeFromLeft(loaderGap);
-    irLoader.setBounds(loaderRow);
-
-    area.removeFromTop(16);
-    gateModule.setBounds(area.removeFromTop(120));
+    layoutMeterCard(inputStageBounds, inputMeter, inputMeterLabel);
+    layoutMeterCard(outputStageBounds, outputMeter, masterVolumeLabel);
 
     area.removeFromTop(14);
 
-    auto knobArea = area.removeFromTop(132);
-    const int knobWidth = knobArea.getWidth() / 6;
-    auto layoutKnob = [knobWidth, &knobArea](juce::Label& label, juce::Slider& slider)
+    const bool stackLoaders = area.getWidth() < 980;
+    auto loaderRow = area.removeFromTop(stackLoaders ? 204 : 96);
+
+    if (stackLoaders)
+    {
+        auto top = loaderRow.removeFromTop((loaderRow.getHeight() - 16) / 2);
+        modelPanel.setBounds(top);
+        loaderRow.removeFromTop(16);
+        irLoader.setBounds(loaderRow);
+    }
+    else
+    {
+        const int loaderGap = 16;
+        const int namWidth = (loaderRow.getWidth() - loaderGap) / 2;
+        modelPanel.setBounds(loaderRow.removeFromLeft(namWidth));
+        loaderRow.removeFromLeft(loaderGap);
+        irLoader.setBounds(loaderRow);
+    }
+
+    area.removeFromTop(14);
+
+    controlStripBounds = area.removeFromTop(258);
+    auto knobArea = controlStripBounds.reduced(18, 16);
+    knobArea.removeFromTop(32);
+    knobArea.removeFromBottom(66);
+
+    const int knobGap = 10;
+    const int knobWidth = (knobArea.getWidth() - knobGap * 6) / 7;
+    auto layoutKnob = [knobWidth, knobGap, &knobArea](juce::Label& label, juce::Slider& slider)
     {
         auto slot = knobArea.removeFromLeft(knobWidth);
         label.setBounds(slot.removeFromTop(20));
-        slider.setBounds(slot.reduced(4, 2));
+        slider.setBounds(slot.reduced(2, 2));
+        if (knobArea.getWidth() > 0)
+            knobArea.removeFromLeft(knobGap);
     };
 
     layoutKnob(inputGainLabel, inputGainSlider);
+    layoutKnob(gateThresholdLabel, gateThresholdSlider);
     layoutKnob(lowLabel, lowSlider);
     layoutKnob(midLabel, midSlider);
     layoutKnob(highLabel, highSlider);
     layoutKnob(blendLabel, blendSlider);
     layoutKnob(outputGainLabel, outputGainSlider);
 
-    area.removeFromTop(10);
+    toggleStripBounds = {};
+    auto bypassRow = controlStripBounds.reduced(20, 18).removeFromBottom(54);
 
-    auto bypassRow = area.removeFromTop(48);
-    const int toggleX = bypassRow.getCentreX() - 25;
-    eqBypassButton.setBounds(toggleX, bypassRow.getY(), 50, 26);
-    eqActiveLabel.setBounds(bypassRow.getCentreX() - 110, bypassRow.getY() + 28, 220, 16);
-    eqLineLabel.setBounds(toggleX - 90, bypassRow.getY() + 2, 80, 20);
-    nlmiiLineLabel.setBounds(toggleX + 60, bypassRow.getY() + 2, 80, 20);
+    const int toggleWidth = 56;
+    const int leftLabelWidth = 132;
+    const int rightLabelWidth = 132;
+    const int toggleX = bypassRow.getCentreX() - (toggleWidth / 2);
 
-    area.removeFromTop(12);
+    eqBypassButton.setBounds(toggleX, bypassRow.getY() + 1, toggleWidth, 26);
+    eqLineLabel.setBounds(toggleX - leftLabelWidth, bypassRow.getY() + 3, leftLabelWidth - 14, 18);
+    nlmiiLineLabel.setBounds(toggleX + toggleWidth + 14, bypassRow.getY() + 3, rightLabelWidth - 14, 18);
+    eqActiveLabel.setBounds(controlStripBounds.getX() + 22, bypassRow.getBottom() + 2,
+                            controlStripBounds.getWidth() - 44, 16);
+
+    area.removeFromTop(14);
     presetShelf.setBounds(area);
 }
 
@@ -306,20 +367,92 @@ void GoldPedalAudioProcessorEditor::timerCallback()
 void GoldPedalAudioProcessorEditor::configureKnob(juce::Slider& slider, juce::Label& label, const juce::String& text)
 {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 64, 18);
+    slider.setRotaryParameters(juce::MathConstants<float>::pi * 1.18f,
+                               juce::MathConstants<float>::pi * 2.82f,
+                               true);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 76, 20);
 
     label.setText(text, juce::dontSendNotification);
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, Theme::textSecondary);
-    label.setFont(juce::Font(13.0f, juce::Font::bold));
+    label.setFont(juce::Font(14.0f, juce::Font::bold));
 
     addAndMakeVisible(slider);
     addAndMakeVisible(label);
 }
 
-void GoldPedalAudioProcessorEditor::paintStagePanel(juce::Graphics&, juce::Rectangle<int>, const juce::String&) {}
-void GoldPedalAudioProcessorEditor::paintControlStrip(juce::Graphics&, juce::Rectangle<int>) {}
-void GoldPedalAudioProcessorEditor::paintToggleStrip(juce::Graphics&, juce::Rectangle<int>) {}
+void GoldPedalAudioProcessorEditor::paintStagePanel(juce::Graphics& g, juce::Rectangle<int> bounds, const juce::String& title)
+{
+    if (bounds.isEmpty())
+        return;
+
+    auto panel = bounds.toFloat();
+    g.setColour(juce::Colours::black.withAlpha(0.16f));
+    g.fillRoundedRectangle(panel.translated(0.0f, 3.0f), 16.0f);
+
+    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.withAlpha(0.92f), panel.getCentreX(), panel.getY(),
+                                           Theme::panel.withAlpha(0.88f), panel.getCentreX(), panel.getBottom(), false));
+    g.fillRoundedRectangle(panel, 16.0f);
+
+    g.setColour(Theme::panelOutline.withAlpha(0.8f));
+    g.drawRoundedRectangle(panel, 16.0f, 1.0f);
+
+    g.setColour(Theme::accent.withAlpha(0.12f));
+    g.fillRoundedRectangle(panel.removeFromTop(18.0f), 16.0f);
+
+    g.setColour(Theme::textSecondary);
+    g.setFont(juce::Font(11.0f, juce::Font::bold));
+    g.drawText(title, bounds.reduced(14, 8).removeFromTop(14), juce::Justification::centredLeft, false);
+}
+
+void GoldPedalAudioProcessorEditor::paintControlStrip(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty())
+        return;
+
+    auto panel = bounds.toFloat();
+    g.setColour(juce::Colours::black.withAlpha(0.16f));
+    g.fillRoundedRectangle(panel.translated(0.0f, 4.0f), 22.0f);
+
+    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.withAlpha(0.7f), panel.getX(), panel.getY(),
+                                           Theme::panel.withAlpha(0.82f), panel.getRight(), panel.getBottom(), false));
+    g.fillRoundedRectangle(panel, 22.0f);
+
+    g.setColour(Theme::panelOutline.withAlpha(0.8f));
+    g.drawRoundedRectangle(panel, 22.0f, 1.0f);
+
+    auto headerArea = bounds.reduced(18, 10).removeFromTop(18);
+    g.setColour(Theme::textSecondary);
+    g.setFont(juce::Font(12.0f, juce::Font::bold));
+    g.drawText("CHAIN CONTROLS", headerArea, juce::Justification::centredLeft, false);
+
+    auto voicingLineY = static_cast<float>(bounds.getBottom() - 48);
+    g.setColour(Theme::panelOutline.withAlpha(0.5f));
+    g.drawHorizontalLine(voicingLineY, static_cast<float>(bounds.getX() + 18), static_cast<float>(bounds.getRight() - 18));
+
+    g.setColour(Theme::textSecondary);
+    g.setFont(juce::Font(11.0f, juce::Font::bold));
+    g.drawText("VOICING", bounds.getX() + 18, bounds.getBottom() - 42, 80, 14, juce::Justification::centredLeft, false);
+}
+
+void GoldPedalAudioProcessorEditor::paintToggleStrip(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty())
+        return;
+
+    auto panel = bounds.toFloat();
+    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.withAlpha(0.58f), panel.getCentreX(), panel.getY(),
+                                           Theme::panel.withAlpha(0.78f), panel.getCentreX(), panel.getBottom(), false));
+    g.fillRoundedRectangle(panel, 18.0f);
+
+    g.setColour(Theme::panelOutline.withAlpha(0.75f));
+    g.drawRoundedRectangle(panel, 18.0f, 1.0f);
+
+    auto headerArea = bounds.reduced(18, 8).removeFromTop(16);
+    g.setColour(Theme::textSecondary);
+    g.setFont(juce::Font(11.0f, juce::Font::bold));
+    g.drawText("VOICING", headerArea, juce::Justification::centredLeft, false);
+}
 
 void GoldPedalAudioProcessorEditor::refreshAssetLabels()
 {
@@ -346,11 +479,11 @@ void GoldPedalAudioProcessorEditor::refreshPresetShelf()
 void GoldPedalAudioProcessorEditor::refreshEqModeLabel()
 {
     const bool rawNamMode = eqBypassButton.getToggleState();
-    eqActiveLabel.setText(rawNamMode ? "Post EQ bypassed | Raw NAM voicing"
-                                     : "Post EQ active",
+    eqActiveLabel.setText(rawNamMode ? "Post EQ is off. You are hearing the raw NAM voicing."
+                                     : "Post EQ is on and shaping the final output.",
                           juce::dontSendNotification);
-    eqLineLabel.setColour(juce::Label::textColourId, rawNamMode ? Theme::textSecondary : Theme::textPrimary);
-    nlmiiLineLabel.setColour(juce::Label::textColourId, rawNamMode ? Theme::textPrimary : Theme::textSecondary);
+    eqLineLabel.setColour(juce::Label::textColourId, rawNamMode ? Theme::textSecondary : Theme::success);
+    nlmiiLineLabel.setColour(juce::Label::textColourId, rawNamMode ? Theme::danger : Theme::textSecondary);
 }
 
 void GoldPedalAudioProcessorEditor::showSavePresetDialog()

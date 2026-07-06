@@ -36,6 +36,7 @@ target_sources(GoldPedal PRIVATE
     Source/DSP/EQModule.cpp
     Source/DSP/PedalboardProcessor.cpp
     Source/UI/GoldLookAndFeel.cpp
+    Source/UI/InputGateComponent.cpp
     Source/UI/MeterComponent.cpp
     Source/UI/ModelPanelComponent.cpp
     Source/UI/PedalModuleComponent.cpp

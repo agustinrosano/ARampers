@@ -52,11 +52,10 @@ private:
     juce::Label inputMeterLabel { {}, "Input Level" };
     juce::Label masterVolumeLabel { {}, "Output Level" };
     juce::Label aboutLabel { {}, "About" };
-    juce::Label eqLineLabel { {}, "EQ" };
-    juce::Label nlmiiLineLabel { {}, "RAW NAM" };
+    juce::Label eqLineLabel { {}, "ON" };
+    juce::Label nlmiiLineLabel { {}, "OFF" };
     juce::Label eqActiveLabel { {}, "Post EQ active" };
 
-    PedalModuleComponent gateModule;
     PedalModuleComponent irModule;
     PedalModuleComponent eqModule;
 
@@ -70,6 +69,10 @@ private:
     juce::Slider lowSlider;
     juce::Label lowLabel;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowAttachment;
+
+    juce::Slider gateThresholdSlider;
+    juce::Label gateThresholdLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gateThresholdAttachment;
 
     juce::Slider midSlider;
     juce::Label midLabel;

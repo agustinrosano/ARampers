@@ -29,6 +29,24 @@ public:
     void resized() override;
 
 private:
+    enum class PresetActionIcon
+    {
+        edit,
+        save,
+        remove
+    };
+
+    class IconButton : public juce::Button
+    {
+    public:
+        explicit IconButton(PresetActionIcon iconType);
+
+        void paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown) override;
+
+    private:
+        PresetActionIcon icon;
+    };
+
     struct SlotCard : public juce::Component
     {
         explicit SlotCard(int slotIndex);
@@ -37,16 +55,22 @@ private:
         void paint(juce::Graphics& g) override;
         void resized() override;
         void mouseDown(const juce::MouseEvent& event) override;
+        void mouseDoubleClick(const juce::MouseEvent& event) override;
 
         int index = 0;
         bool occupied = false;
+        bool editing = false;
         juce::Label numberLabel;
         juce::Label nameLabel;
         juce::Label modelLabel;
         juce::Label irLabel;
-        juce::TextButton loadButton { "Load" };
-        juce::TextButton storeButton { "Store" };
-        juce::TextButton clearButton { "Clear" };
+        IconButton editButton { PresetActionIcon::edit };
+        IconButton saveButton { PresetActionIcon::save };
+        IconButton clearButton { PresetActionIcon::remove };
+
+    private:
+        void beginEditing();
+        void finishEditing(bool keepChanges);
     };
 
     juce::Label sectionLabel;

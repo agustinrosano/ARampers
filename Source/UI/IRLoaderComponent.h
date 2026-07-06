@@ -15,11 +15,15 @@ public:
     void resized() override;
 
 private:
+    void refreshBypassState();
+
     juce::Label titleLabel;
+    juce::Label onLabel { {}, "ON" };
+    juce::Label offLabel { {}, "OFF" };
     juce::TextButton loadButton { "LOAD..." };
     juce::TextButton clearButton { "Clear" };
     juce::Label fileLabel;
-    juce::ToggleButton bypassButton { "ON" };
+    juce::ToggleButton bypassButton { {} };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(IRLoaderComponent)

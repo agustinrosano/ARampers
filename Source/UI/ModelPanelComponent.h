@@ -18,13 +18,17 @@ public:
     void resized() override;
 
 private:
+    void refreshBypassState();
+
     juce::Label eyebrowLabel;
     juce::Label modelNameLabel;
     juce::Label architectureLabel;
     juce::Label statusLabel;
+    juce::Label onLabel { {}, "ON" };
+    juce::Label offLabel { {}, "OFF" };
     juce::TextButton loadButton { "LOAD..." };
     juce::TextButton clearButton { "Clear" };
-    juce::ToggleButton bypassButton { "BYPASS" };
+    juce::ToggleButton bypassButton { {} };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
     bool hasError = false;
 

@@ -46,33 +46,65 @@ void PedalModuleComponent::paint(juce::Graphics& g)
     g.drawRoundedRectangle(bounds, 20.0f, 1.0f);
 
     g.setColour(Theme::accent.withAlpha(0.08f));
-    g.fillRoundedRectangle(bounds.removeFromTop(42.0f), 20.0f);
+    g.fillRoundedRectangle(bounds.removeFromTop(30.0f), 20.0f);
 }
 
 void PedalModuleComponent::configureSlider(juce::Slider& slider)
 {
     slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 18);
+    slider.setRotaryParameters(juce::MathConstants<float>::pi * 1.18f,
+                               juce::MathConstants<float>::pi * 2.82f,
+                               true);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 20);
 }
 
 void PedalModuleComponent::resized()
 {
     auto area = getLocalBounds().reduced(12);
-    auto header = area.removeFromTop(48);
+    auto header = area.removeFromTop(30);
 
-    titleLabel.setBounds(header.removeFromTop(22));
-    bypassButton.setBounds(header.removeFromTop(24));
+    auto titleArea = header.removeFromLeft(juce::jmax(120, header.getWidth() / 2));
+    titleLabel.setJustificationType(juce::Justification::centredLeft);
+    titleLabel.setBounds(titleArea);
+    bypassButton.setBounds(header.removeFromRight(96).reduced(0, 2));
+
+    area.removeFromTop(10);
 
     if (knobControls.empty())
         return;
 
-    auto knobArea = area;
-    const int knobWidth = knobArea.getWidth() / static_cast<int>(knobControls.size());
+    auto knobArea = area.reduced(4, 0);
+
+    if (knobControls.size() <= 2)
+    {
+        const int columns = static_cast<int>(knobControls.size());
+        const int gap = 24;
+        const int knobWidth = (knobArea.getWidth() - gap * (columns - 1)) / columns;
+
+        for (auto& knob : knobControls)
+        {
+            auto slot = knobArea.removeFromLeft(knobWidth);
+            knob->label.setBounds(slot.removeFromTop(18));
+            knob->slider.setBounds(slot.reduced(2, 0));
+
+            if (knobArea.getWidth() > 0)
+                knobArea.removeFromLeft(gap);
+        }
+
+        return;
+    }
+
+    const int gap = 16;
+    const int knobWidth = (knobArea.getWidth() - gap * (static_cast<int>(knobControls.size()) - 1))
+                        / static_cast<int>(knobControls.size());
 
     for (auto& knob : knobControls)
     {
         auto slot = knobArea.removeFromLeft(knobWidth);
         knob->label.setBounds(slot.removeFromTop(16));
         knob->slider.setBounds(slot.reduced(4));
+
+        if (knobArea.getWidth() > 0)
+            knobArea.removeFromLeft(gap);
     }
 }
