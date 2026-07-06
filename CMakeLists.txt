@@ -77,6 +77,7 @@ target_compile_definitions(GoldPedal PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
+    JUCE_ASIO=1
     NAM_ENABLE_A2_FAST=1
     NAM_SAMPLE_FLOAT=1
 )

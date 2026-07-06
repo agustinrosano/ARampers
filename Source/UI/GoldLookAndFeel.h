@@ -4,21 +4,21 @@
 
 namespace Theme
 {
-static const juce::Colour backgroundTop = juce::Colour(0xff2c2c2f);
-static const juce::Colour backgroundBottom = juce::Colour(0xff1a1a1d);
-static const juce::Colour panel = juce::Colour(0xff343438);
-static const juce::Colour panelRaised = juce::Colour(0xff3d3d42);
-static const juce::Colour panelOutline = juce::Colour(0xff6a6b72);
-static const juce::Colour accent = juce::Colour(0xffff6f61);
-static const juce::Colour accentSoft = juce::Colour(0x66ff6f61);
-static const juce::Colour textPrimary = juce::Colour(0xfff4f4f6);
-static const juce::Colour textSecondary = juce::Colour(0xffb5b7bf);
-static const juce::Colour success = juce::Colour(0xff7ef07a);
-static const juce::Colour danger = juce::Colour(0xffff756c);
-static const juce::Colour presetGreen = juce::Colour(0xff66eb78);
-static const juce::Colour presetOrange = juce::Colour(0xffffb347);
-static const juce::Colour presetBlue = juce::Colour(0xff56b8ff);
-static const juce::Colour presetPurple = juce::Colour(0xffc472ff);
+static const juce::Colour backgroundTop = juce::Colour(0xff2d2d2d);
+static const juce::Colour backgroundBottom = juce::Colour(0xff262626);
+static const juce::Colour panel = juce::Colour(0xff333333);
+static const juce::Colour panelRaised = juce::Colour(0xff3e3e3e);
+static const juce::Colour panelOutline = juce::Colour(0xff4c4c4c);
+static const juce::Colour accent = juce::Colour(0xffe85545);
+static const juce::Colour accentSoft = juce::Colour(0x33e85545);
+static const juce::Colour textPrimary = juce::Colour(0xffeaeaea);
+static const juce::Colour textSecondary = juce::Colour(0xff9a9a9a);
+static const juce::Colour success = juce::Colour(0xff5cd66f);
+static const juce::Colour danger = juce::Colour(0xffe85545);
+static const juce::Colour presetGreen = juce::Colour(0xff4cd964);
+static const juce::Colour presetOrange = juce::Colour(0xffff9500);
+static const juce::Colour presetBlue = juce::Colour(0xff34aadc);
+static const juce::Colour presetPurple = juce::Colour(0xffaf52de);
 
 inline juce::Colour getPresetAccent(int index)
 {

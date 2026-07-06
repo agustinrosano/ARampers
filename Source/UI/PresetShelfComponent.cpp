@@ -6,110 +6,125 @@ PresetShelfComponent::SlotCard::SlotCard(int slotIndex)
     numberLabel.setText(juce::String::charToString(static_cast<juce::juce_wchar>('A' + slotIndex)), juce::dontSendNotification);
     numberLabel.setJustificationType(juce::Justification::centred);
     numberLabel.setColour(juce::Label::textColourId, Theme::getPresetAccent(slotIndex));
-    numberLabel.setFont(juce::Font(28.0f, juce::Font::bold));
+    numberLabel.setFont(juce::Font(48.0f, juce::Font::bold));
     addAndMakeVisible(numberLabel);
 
     nameLabel.setEditable(true);
     nameLabel.setJustificationType(juce::Justification::centred);
     nameLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
-    nameLabel.setColour(juce::Label::textColourId, Theme::textPrimary);
-    nameLabel.setFont(juce::Font(16.0f, juce::Font::bold));
+    nameLabel.setColour(juce::Label::textColourId, Theme::getPresetAccent(slotIndex));
+    nameLabel.setFont(juce::Font(13.0f, juce::Font::plain));
     addAndMakeVisible(nameLabel);
 
-    modelLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
-    modelLabel.setJustificationType(juce::Justification::centred);
-    addAndMakeVisible(modelLabel);
-
-    irLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
-    irLabel.setJustificationType(juce::Justification::centred);
-    addAndMakeVisible(irLabel);
-
-    addAndMakeVisible(loadButton);
-    addAndMakeVisible(storeButton);
-    addAndMakeVisible(clearButton);
+    // Hide details not in mockup
+    modelLabel.setVisible(false);
+    irLabel.setVisible(false);
+    loadButton.setVisible(false);
+    storeButton.setVisible(false);
+    clearButton.setVisible(false);
 }
 
 void PresetShelfComponent::SlotCard::setSlotData(const PresetShelfSlotView& view)
 {
     occupied = view.occupied;
-    nameLabel.setText(view.name, juce::dontSendNotification);
-    modelLabel.setText("Model: " + (view.modelName.isEmpty() ? "None" : view.modelName), juce::dontSendNotification);
-    irLabel.setText("IR: " + (view.irName.isEmpty() ? "None" : view.irName), juce::dontSendNotification);
-    loadButton.setEnabled(view.occupied);
-    clearButton.setEnabled(view.occupied);
+    nameLabel.setText(juce::String::charToString(static_cast<juce::juce_wchar>('A' + index)) + ": " + (view.name.isEmpty() ? "CLEAN" : view.name.toUpperCase()), juce::dontSendNotification);
 }
 
 void PresetShelfComponent::SlotCard::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat().reduced(1.0f);
     const auto accent = Theme::getPresetAccent(index);
-    auto base = occupied ? Theme::panelRaised.brighter(0.12f) : Theme::panel;
-    g.setGradientFill(juce::ColourGradient(base, bounds.getX(), bounds.getY(),
-                                           base.darker(0.08f), bounds.getRight(), bounds.getBottom(), false));
-    g.fillRoundedRectangle(bounds, 18.0f);
-    g.setColour(occupied ? accent.withAlpha(0.18f) : juce::Colours::black.withAlpha(0.14f));
-    g.fillRoundedRectangle(bounds.reduced(4.0f), 14.0f);
-    g.setColour(occupied ? accent : Theme::panelOutline.withAlpha(0.8f));
-    g.drawRoundedRectangle(bounds, 18.0f, occupied ? 1.8f : 1.0f);
 
-    g.setColour((occupied ? accent : Theme::panelOutline).withAlpha(0.16f));
-    g.fillRoundedRectangle(bounds.removeFromTop(38.0f), 18.0f);
+    auto* shelf = findParentComponentOfClass<PresetShelfComponent>();
+    const bool isActive = (shelf != nullptr && shelf->activeSlotIndex == index);
+
+    // Leave space at bottom for indicator dot
+    auto stompbox = bounds;
+    stompbox.removeFromBottom(16.0f);
+
+    // Draw stompbox body
+    g.setColour(juce::Colour(0xff222222));
+    g.fillRoundedRectangle(stompbox, 10.0f);
+
+    // Draw border
+    g.setColour(isActive ? accent : accent.withAlpha(0.35f));
+    g.drawRoundedRectangle(stompbox, 10.0f, isActive ? 2.2f : 1.2f);
+
+    // Adjust child label colours based on active state
+    numberLabel.setColour(juce::Label::textColourId, isActive ? accent : accent.withAlpha(0.4f));
+    nameLabel.setColour(juce::Label::textColourId, isActive ? accent : accent.withAlpha(0.4f));
+
+    // Draw dot underneath
+    auto dotRect = juce::Rectangle<float>(bounds.getCentreX() - 4.0f, bounds.getBottom() - 10.0f, 8.0f, 8.0f);
+    if (isActive)
+    {
+        g.setColour(accent.withAlpha(0.3f));
+        g.fillEllipse(dotRect.expanded(4.0f));
+        g.setColour(accent);
+        g.fillEllipse(dotRect);
+    }
+    else
+    {
+        g.setColour(juce::Colour(0xff555555));
+        g.fillEllipse(dotRect);
+    }
 }
 
 void PresetShelfComponent::SlotCard::resized()
 {
-    auto area = getLocalBounds().reduced(14);
+    auto area = getLocalBounds();
+    area.removeFromBottom(16); // space for dot
 
-    auto topRow = area.removeFromTop(28);
-    numberLabel.setBounds(topRow.removeFromLeft(42));
-    nameLabel.setBounds(topRow);
+    auto h = area.getHeight();
+    numberLabel.setBounds(area.removeFromTop(h * 0.65f));
+    nameLabel.setBounds(area.reduced(6, 2));
+}
 
-    area.removeFromTop(8);
-    modelLabel.setBounds(area.removeFromTop(20));
-    irLabel.setBounds(area.removeFromTop(20));
-    area.removeFromTop(10);
-
-    auto buttonRow = area.removeFromBottom(30);
-    loadButton.setBounds(buttonRow.removeFromLeft(buttonRow.getWidth() / 3).reduced(2));
-    storeButton.setBounds(buttonRow.removeFromLeft(buttonRow.getWidth() / 2).reduced(2));
-    clearButton.setBounds(buttonRow.reduced(2));
+void PresetShelfComponent::SlotCard::mouseDown(const juce::MouseEvent& event)
+{
+    if (event.mods.isRightButtonDown())
+    {
+        if (auto* shelf = findParentComponentOfClass<PresetShelfComponent>())
+        {
+            if (shelf->onStoreClicked)
+                shelf->onStoreClicked(index);
+        }
+    }
+    else
+    {
+        if (auto* shelf = findParentComponentOfClass<PresetShelfComponent>())
+        {
+            if (shelf->onLoadClicked)
+                shelf->onLoadClicked(index);
+        }
+    }
 }
 
 PresetShelfComponent::PresetShelfComponent(int slotCount)
 {
     sectionLabel.setText("PRESETS", juce::dontSendNotification);
-    sectionLabel.setColour(juce::Label::textColourId, Theme::textPrimary);
-    sectionLabel.setJustificationType(juce::Justification::centredLeft);
-    sectionLabel.setFont(juce::Font(18.0f, juce::Font::bold));
+    sectionLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
+    sectionLabel.setJustificationType(juce::Justification::centred);
+    sectionLabel.setFont(juce::Font(13.0f, juce::Font::bold));
     addAndMakeVisible(sectionLabel);
 
-    for (int index = 0; index < slotCount; ++index)
+    // We only show 4 stompboxes (A, B, C, D)
+    const int count = juce::jmin(slotCount, 4);
+    for (int index = 0; index < count; ++index)
     {
         auto card = std::make_unique<SlotCard>(index);
         auto* cardPtr = card.get();
 
-        cardPtr->loadButton.onClick = [this, index]()
-        {
-            if (onLoadClicked)
-                onLoadClicked(index);
-        };
-
-        cardPtr->storeButton.onClick = [this, index]()
-        {
-            if (onStoreClicked)
-                onStoreClicked(index);
-        };
-
-        cardPtr->clearButton.onClick = [this, index]()
-        {
-            if (onClearClicked)
-                onClearClicked(index);
-        };
-
         cardPtr->nameLabel.onTextChange = [this, cardPtr, index]()
         {
             if (onNameChanged)
-                onNameChanged(index, cardPtr->nameLabel.getText());
+            {
+                // Remove the "A: " prefix before saving
+                auto rawName = cardPtr->nameLabel.getText();
+                if (rawName.startsWith(juce::String::charToString(static_cast<juce::juce_wchar>('A' + index)) + ": "))
+                    rawName = rawName.substring(3);
+                onNameChanged(index, rawName);
+            }
         };
 
         addAndMakeVisible(cardPtr);
@@ -124,28 +139,40 @@ void PresetShelfComponent::setSlots(const std::vector<PresetShelfSlotView>& slot
         slotCards[static_cast<size_t>(index)]->setSlotData(slotViews[static_cast<size_t>(index)]);
 }
 
+void PresetShelfComponent::setActiveSlot(int index)
+{
+    if (index >= 0 && index < static_cast<int>(slotCards.size()))
+    {
+        activeSlotIndex = index;
+        repaint();
+    }
+}
+
 void PresetShelfComponent::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat().reduced(1.0f);
-    g.setGradientFill(juce::ColourGradient(Theme::panel.withAlpha(0.94f), bounds.getX(), bounds.getY(),
-                                           Theme::panel.darker(0.08f), bounds.getRight(), bounds.getBottom(), false));
-    g.fillRoundedRectangle(bounds, 24.0f);
-    g.setColour(Theme::panelOutline);
-    g.drawRoundedRectangle(bounds, 24.0f, 1.0f);
+    
+    // Draw thin frame border around the presets section
+    g.setColour(Theme::panelOutline.withAlpha(0.5f));
+    g.drawRoundedRectangle(bounds, 12.0f, 1.0f);
 
-    auto titleLine = bounds.reduced(18.0f, 0.0f).removeFromTop(34.0f);
-    g.setColour(Theme::textSecondary.withAlpha(0.32f));
-    g.drawLine(titleLine.getX(), titleLine.getBottom(), titleLine.getRight(), titleLine.getBottom(), 1.0f);
+    // Draw the "PRESETS" title in the middle of the frame top
+    auto titleArea = bounds.removeFromTop(20.0f);
+    g.setColour(juce::Colour(0xff2d2d2d)); // matching background to mask frame line
+    g.fillRect(titleArea.getCentreX() - 50.0f, titleArea.getY(), 100.0f, 20.0f);
 }
 
 void PresetShelfComponent::resized()
 {
     auto area = getLocalBounds().reduced(14);
-    sectionLabel.setBounds(area.removeFromTop(24));
+    
+    // Title at the top center
+    sectionLabel.setBounds(area.getX() + (area.getWidth() - 120) / 2, area.getY() - 24, 120, 20);
+    
     area.removeFromTop(12);
 
     const int columns = juce::jmax(1, static_cast<int>(slotCards.size()));
-    const int gap = 10;
+    const int gap = 16;
     const int cardWidth = (area.getWidth() - gap * (columns - 1)) / columns;
     const int cardHeight = area.getHeight();
 

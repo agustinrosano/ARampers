@@ -34,6 +34,7 @@ private:
     void showLoadIRDialog();
     void showLoadNAMDialog();
     void applyFactoryPreset(int index);
+    void refreshEqModeLabel();
 
     GoldPedalAudioProcessor& processor;
     juce::AudioProcessorValueTreeState& apvts;
@@ -45,6 +46,15 @@ private:
     ModelPanelComponent modelPanel;
     IRLoaderComponent irLoader;
     PresetShelfComponent presetShelf;
+
+    juce::TextButton menuButton { "MENU" };
+    juce::TextButton aboutButton { "i" };
+    juce::Label inputMeterLabel { {}, "Input Level" };
+    juce::Label masterVolumeLabel { {}, "Output Level" };
+    juce::Label aboutLabel { {}, "About" };
+    juce::Label eqLineLabel { {}, "EQ" };
+    juce::Label nlmiiLineLabel { {}, "RAW NAM" };
+    juce::Label eqActiveLabel { {}, "Post EQ active" };
 
     PedalModuleComponent gateModule;
     PedalModuleComponent irModule;

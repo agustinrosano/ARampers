@@ -18,6 +18,38 @@ juce::File getLegacyUserPresetBankFile()
                          .getChildFile(legacyAppDataFolderName);
     return directory.getChildFile("preset-bank.xml");
 }
+
+void normaliseStandaloneMonoInputToStereo(juce::AudioBuffer<float>& buffer, int totalNumInputChannels, int totalNumOutputChannels)
+{
+   #if JucePlugin_Build_Standalone
+    if (totalNumInputChannels < 2 || totalNumOutputChannels < 2 || buffer.getNumChannels() < 2)
+        return;
+
+    constexpr float silenceThreshold = 1.0e-4f;
+    constexpr float dominantChannelRatio = 6.0f;
+    const auto leftMagnitude = buffer.getMagnitude(0, 0, buffer.getNumSamples());
+    const auto rightMagnitude = buffer.getMagnitude(1, 0, buffer.getNumSamples());
+
+    if (leftMagnitude > silenceThreshold && rightMagnitude <= silenceThreshold)
+    {
+        buffer.copyFrom(1, 0, buffer, 0, 0, buffer.getNumSamples());
+    }
+    else if (rightMagnitude > silenceThreshold && leftMagnitude <= silenceThreshold)
+    {
+        buffer.copyFrom(0, 0, buffer, 1, 0, buffer.getNumSamples());
+    }
+    else if (leftMagnitude > silenceThreshold && leftMagnitude > rightMagnitude * dominantChannelRatio)
+    {
+        buffer.copyFrom(1, 0, buffer, 0, 0, buffer.getNumSamples());
+    }
+    else if (rightMagnitude > silenceThreshold && rightMagnitude > leftMagnitude * dominantChannelRatio)
+    {
+        buffer.copyFrom(0, 0, buffer, 1, 0, buffer.getNumSamples());
+    }
+   #else
+    juce::ignoreUnused(buffer, totalNumInputChannels, totalNumOutputChannels);
+   #endif
+}
 }
 
 GoldPedalAudioProcessor::GoldPedalAudioProcessor()
@@ -137,6 +169,7 @@ void GoldPedalAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     for (int channel = totalNumInputChannels; channel < totalNumOutputChannels; ++channel)
         buffer.clear(channel, 0, buffer.getNumSamples());
 
+    normaliseStandaloneMonoInputToStereo(buffer, totalNumInputChannels, totalNumOutputChannels);
     inputMeterLevel.store(measureBufferPeak(buffer), std::memory_order_relaxed);
     updateParametersFromAPVTS();
     pedalboard.process(buffer);
@@ -537,8 +570,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::cre
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        ParamIDs::inputGain, "Input Gain",
-        juce::NormalisableRange<float>(0.0f, 24.0f, 0.01f), 0.0f));
+        ParamIDs::inputGain, "Input",
+        juce::NormalisableRange<float>(-18.0f, 18.0f, 0.01f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         ParamIDs::inputBypass, "Input Bypass", false));
 
@@ -573,8 +606,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout GoldPedalAudioProcessor::cre
         ParamIDs::eqBypass, "EQ Bypass", false));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        ParamIDs::outputGain, "Output Gain",
-        juce::NormalisableRange<float>(-24.0f, 0.0f, 0.01f), 0.0f));
+        ParamIDs::outputGain, "Output",
+        juce::NormalisableRange<float>(-24.0f, 12.0f, 0.01f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         ParamIDs::outputBypass, "Output Bypass", false));
 

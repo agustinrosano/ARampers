@@ -23,6 +23,7 @@ public:
     std::function<void(int, const juce::String&)> onNameChanged;
 
     void setSlots(const std::vector<PresetShelfSlotView>& slotViews);
+    void setActiveSlot(int index);
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -35,6 +36,7 @@ private:
         void setSlotData(const PresetShelfSlotView& view);
         void paint(juce::Graphics& g) override;
         void resized() override;
+        void mouseDown(const juce::MouseEvent& event) override;
 
         int index = 0;
         bool occupied = false;
@@ -49,6 +51,7 @@ private:
 
     juce::Label sectionLabel;
     std::vector<std::unique_ptr<SlotCard>> slotCards;
+    int activeSlotIndex = 0; // Default active slot is A (index 0)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PresetShelfComponent)
 };

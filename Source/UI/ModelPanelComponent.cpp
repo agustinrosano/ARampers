@@ -4,22 +4,24 @@
 ModelPanelComponent::ModelPanelComponent(juce::AudioProcessorValueTreeState& state, const juce::String& bypassParamId)
 {
     eyebrowLabel.setText("NAM (Neural Amp Modeler)", juce::dontSendNotification);
-    eyebrowLabel.setColour(juce::Label::textColourId, Theme::accent);
+    eyebrowLabel.setColour(juce::Label::textColourId, Theme::textPrimary);
     eyebrowLabel.setJustificationType(juce::Justification::centredLeft);
+    eyebrowLabel.setFont(juce::Font(15.0f, juce::Font::bold));
     addAndMakeVisible(eyebrowLabel);
 
-    modelNameLabel.setText("No model loaded", juce::dontSendNotification);
+    modelNameLabel.setText("NAM: No model loaded", juce::dontSendNotification);
     modelNameLabel.setJustificationType(juce::Justification::centredLeft);
-    modelNameLabel.setFont(juce::Font(28.0f, juce::Font::bold));
+    modelNameLabel.setFont(juce::Font(13.0f, juce::Font::plain));
+    modelNameLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
     addAndMakeVisible(modelNameLabel);
 
-    architectureLabel.setText("Primary amp capture", juce::dontSendNotification);
     architectureLabel.setJustificationType(juce::Justification::centredLeft);
+    architectureLabel.setFont(juce::Font(11.0f, juce::Font::bold));
     architectureLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
     addAndMakeVisible(architectureLabel);
 
-    statusLabel.setText("Load a .nam file to set the amp voice", juce::dontSendNotification);
     statusLabel.setJustificationType(juce::Justification::centredLeft);
+    statusLabel.setFont(juce::Font(11.0f, juce::Font::plain));
     statusLabel.setColour(juce::Label::textColourId, Theme::textSecondary);
     addAndMakeVisible(statusLabel);
 
@@ -37,6 +39,7 @@ ModelPanelComponent::ModelPanelComponent(juce::AudioProcessorValueTreeState& sta
     };
     addAndMakeVisible(clearButton);
 
+    bypassButton.setButtonText("ON");
     addAndMakeVisible(bypassButton);
     bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         state, bypassParamId, bypassButton);
@@ -44,21 +47,19 @@ ModelPanelComponent::ModelPanelComponent(juce::AudioProcessorValueTreeState& sta
 
 void ModelPanelComponent::setModelName(const juce::String& name)
 {
-    modelNameLabel.setText(name.isEmpty() ? "No model loaded" : name, juce::dontSendNotification);
+    modelNameLabel.setText("NAM: " + (name.isEmpty() ? "No model loaded" : name), juce::dontSendNotification);
 }
 
 void ModelPanelComponent::setArchitecture(const juce::String& architectureName)
 {
-    architectureLabel.setText(architectureName.isEmpty() ? "Primary amp capture" : architectureName,
-                              juce::dontSendNotification);
+    architectureLabel.setText(architectureName, juce::dontSendNotification);
 }
 
 void ModelPanelComponent::setStatusText(const juce::String& status, bool isError)
 {
     hasError = isError;
-    statusLabel.setText(status.isEmpty() ? "Ready" : status, juce::dontSendNotification);
-    statusLabel.setColour(juce::Label::textColourId, hasError ? Theme::danger.brighter(0.25f)
-                                                              : Theme::textSecondary);
+    statusLabel.setText(status, juce::dontSendNotification);
+    statusLabel.setColour(juce::Label::textColourId, isError ? Theme::danger : Theme::textSecondary);
     repaint();
 }
 
@@ -66,26 +67,40 @@ void ModelPanelComponent::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat().reduced(1.0f);
 
-    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.brighter(0.12f), bounds.getX(), bounds.getY(),
-                                           Theme::panel.darker(0.12f), bounds.getRight(), bounds.getBottom(), false));
-    g.fillRoundedRectangle(bounds, 24.0f);
+    // Draw background panel
+    g.setGradientFill(juce::ColourGradient(Theme::panelRaised, bounds.getX(), bounds.getY(),
+                                           Theme::panel, bounds.getRight(), bounds.getBottom(), false));
+    g.fillRoundedRectangle(bounds, 12.0f);
 
     g.setColour(Theme::panelOutline);
-    g.drawRoundedRectangle(bounds, 24.0f, 1.2f);
+    g.drawRoundedRectangle(bounds, 12.0f, 1.2f);
 
-    auto glow = bounds.reduced(16.0f);
-    const auto glowColour = hasError ? Theme::danger.withAlpha(0.16f) : Theme::accent.withAlpha(0.16f);
-    g.setGradientFill(juce::ColourGradient(glowColour, glow.getX(), glow.getY(),
-                                           juce::Colours::transparentBlack, glow.getRight(), glow.getBottom(), false));
-    g.fillRoundedRectangle(glow.removeFromTop(90.0f), 18.0f);
+    // Draw Amp Head Icon on the left
+    auto iconRect = juce::Rectangle<float>(14.0f, (getHeight() - 32.0f) / 2.0f, 44.0f, 32.0f);
+    g.setColour(Theme::textSecondary);
+    // Outer frame
+    g.drawRoundedRectangle(iconRect, 3.0f, 1.5f);
+    // Control panel (bottom half faceplate)
+    auto faceplate = iconRect.removeFromBottom(12.0f).reduced(2.0f, 1.0f);
+    g.setColour(Theme::panelOutline);
+    g.fillRoundedRectangle(faceplate, 1.0f);
+    g.setColour(Theme::textSecondary);
+    // Knobs on faceplate
+    for (float x = faceplate.getX() + 4.0f; x < faceplate.getRight() - 2.0f; x += 6.0f)
+        g.fillEllipse(x, faceplate.getCentreY() - 1.5f, 3.0f, 3.0f);
+    // Vent grille on top half
+    auto vent = iconRect.reduced(6.0f, 4.0f);
+    g.setColour(Theme::panelOutline.darker(0.5f));
+    g.fillRect(vent);
 
-    auto ledArea = bounds.removeFromTop(28.0f).removeFromRight(68.0f).reduced(8.0f, 4.0f);
+    // Draw LEDs (small vertical indicators on the right, next to buttons)
+    auto ledArea = juce::Rectangle<float>(static_cast<float>(getWidth()) - 190.0f, 14.0f, 10.0f, 22.0f);
     const juce::Colour ledColours[] = { Theme::success, Theme::presetBlue, Theme::presetPurple };
     for (int i = 0; i < 3; ++i)
     {
-        auto led = ledArea.removeFromLeft(14.0f).withSizeKeepingCentre(8.0f, 8.0f);
+        auto led = juce::Rectangle<float>(ledArea.getX(), ledArea.getY() + i * 8.0f, 6.0f, 6.0f);
         g.setColour(ledColours[i].withAlpha(0.18f));
-        g.fillEllipse(led.expanded(5.0f));
+        g.fillEllipse(led.expanded(3.0f));
         g.setColour(ledColours[i]);
         g.fillEllipse(led);
     }
@@ -93,18 +108,24 @@ void ModelPanelComponent::paint(juce::Graphics& g)
 
 void ModelPanelComponent::resized()
 {
-    auto area = getLocalBounds().reduced(20);
-    auto header = area.removeFromTop(30);
-    eyebrowLabel.setBounds(header.removeFromLeft(240));
+    auto area = getLocalBounds().reduced(12);
 
-    auto buttonRow = area.removeFromBottom(46);
-    bypassButton.setBounds(buttonRow.removeFromLeft(180));
-    clearButton.setBounds(buttonRow.removeFromRight(92));
-    buttonRow.removeFromRight(8);
-    loadButton.setBounds(buttonRow.removeFromRight(132));
+    area.removeFromLeft(54);
 
-    modelNameLabel.setBounds(area.removeFromTop(54));
-    architectureLabel.setBounds(area.removeFromTop(26));
-    area.removeFromTop(12);
-    statusLabel.setBounds(area.removeFromTop(48));
+    auto rightArea = area.removeFromRight(168);
+    auto toggleArea = rightArea.removeFromRight(50).reduced(0, 4);
+    bypassButton.setBounds(toggleArea);
+
+    auto clearArea = rightArea.removeFromRight(54).reduced(0, 6);
+    clearButton.setBounds(clearArea);
+
+    auto loadArea = rightArea.removeFromRight(55).reduced(0, 6);
+    loadButton.setBounds(loadArea);
+
+    area.removeFromRight(20);
+
+    eyebrowLabel.setBounds(area.removeFromTop(18));
+    modelNameLabel.setBounds(area.removeFromTop(18));
+    architectureLabel.setBounds(area.removeFromTop(16));
+    statusLabel.setBounds(area);
 }

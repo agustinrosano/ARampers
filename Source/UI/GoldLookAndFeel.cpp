@@ -2,9 +2,9 @@
 
 GoldLookAndFeel::GoldLookAndFeel()
 {
-    setColour(juce::Slider::textBoxTextColourId, Theme::textPrimary);
+    setColour(juce::Slider::textBoxTextColourId, Theme::accent);
     setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    setColour(juce::Slider::textBoxBackgroundColourId, Theme::panelRaised);
+    setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
     setColour(juce::Label::textColourId, Theme::textPrimary);
     setColour(juce::TextButton::buttonColourId, Theme::panelRaised);
     setColour(juce::TextButton::textColourOffId, Theme::textPrimary);
@@ -24,45 +24,40 @@ void GoldLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int widt
     const auto centre = bounds.getCentre();
     const auto angle = juce::jmap(sliderPos, 0.0f, 1.0f, rotaryStartAngle, rotaryEndAngle);
 
-    g.setColour(juce::Colours::black.withAlpha(0.25f));
-    g.fillEllipse(bounds.translated(0.0f, 4.0f));
+    // Draw background track
+    juce::Path trackArc;
+    trackArc.addCentredArc(centre.x, centre.y, radius - 4.0f, radius - 4.0f, 0.0f,
+                           rotaryStartAngle, rotaryEndAngle, true);
+    g.setColour(juce::Colour(0xff3a3a3a));
+    g.strokePath(trackArc, juce::PathStrokeType(5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    g.setColour(Theme::accent.withAlpha(0.10f));
-    g.fillEllipse(bounds.expanded(6.0f));
-
-    g.setGradientFill(juce::ColourGradient(Theme::panelRaised.brighter(0.28f), centre.x, bounds.getY(),
-                                           Theme::panel.darker(0.35f), centre.x, bounds.getBottom(), false));
-    g.fillEllipse(bounds);
-
-    g.setColour(Theme::panelOutline);
-    g.drawEllipse(bounds, 1.5f);
-
-    g.setColour(juce::Colours::white.withAlpha(0.08f));
-    g.drawEllipse(bounds.reduced(4.0f), 1.0f);
-
+    // Draw value track
     juce::Path valueArc;
-    valueArc.addCentredArc(centre.x, centre.y, radius - 6.0f, radius - 6.0f, 0.0f,
+    valueArc.addCentredArc(centre.x, centre.y, radius - 4.0f, radius - 4.0f, 0.0f,
                            rotaryStartAngle, angle, true);
     g.setColour(Theme::accent);
-    g.strokePath(valueArc, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath(valueArc, juce::PathStrokeType(5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    juce::Path trackArc;
-    trackArc.addCentredArc(centre.x, centre.y, radius - 6.0f, radius - 6.0f, 0.0f,
-                           angle, rotaryEndAngle, true);
-    g.setColour(Theme::textSecondary.withAlpha(0.38f));
-    g.strokePath(trackArc, juce::PathStrokeType(2.0f));
+    // Draw inner knob cap
+    const auto dialRadius = radius - 8.0f;
+    const auto capBounds = juce::Rectangle<float>(centre.x - dialRadius, centre.y - dialRadius, dialRadius * 2.0f, dialRadius * 2.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.3f));
+    g.fillEllipse(capBounds.translated(0.0f, 2.0f));
 
-    const auto pointerLength = radius * 0.58f;
-    const auto pointerThickness = 3.0f;
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff555555), centre.x, capBounds.getY(),
+                                           juce::Colour(0xff2d2d2d), centre.x, capBounds.getBottom(), false));
+    g.fillEllipse(capBounds);
+
+    g.setColour(juce::Colour(0xff666666));
+    g.drawEllipse(capBounds, 1.5f);
+
+    // Draw pointer
+    const auto pointerLength = (radius - 8.0f) * 0.9f;
+    const auto pointerThickness = 2.5f;
     juce::Path pointer;
-    pointer.addRoundedRectangle(-pointerThickness * 0.5f, -pointerLength, pointerThickness, pointerLength, 1.5f);
-    g.setColour(Theme::textPrimary);
+    pointer.addRoundedRectangle(-pointerThickness * 0.5f, -pointerLength, pointerThickness, pointerLength, 1.0f);
+    g.setColour(Theme::accent);
     g.fillPath(pointer, juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
-
-    g.setColour(Theme::accent.brighter(0.25f));
-    g.fillEllipse(centre.x - 5.0f, centre.y - 5.0f, 10.0f, 10.0f);
-    g.setColour(juce::Colours::white.withAlpha(0.35f));
-    g.fillEllipse(centre.x - 2.0f, centre.y - 2.0f, 4.0f, 4.0f);
 }
 
 void GoldLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour&,

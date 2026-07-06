@@ -5,7 +5,7 @@
 class IRLoaderComponent : public juce::Component
 {
 public:
-    IRLoaderComponent();
+    IRLoaderComponent(juce::AudioProcessorValueTreeState& state, const juce::String& bypassParamId);
 
     std::function<void()> onLoadClicked;
     std::function<void()> onClearClicked;
@@ -19,6 +19,8 @@ private:
     juce::TextButton loadButton { "LOAD..." };
     juce::TextButton clearButton { "Clear" };
     juce::Label fileLabel;
+    juce::ToggleButton bypassButton { "ON" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(IRLoaderComponent)
 };

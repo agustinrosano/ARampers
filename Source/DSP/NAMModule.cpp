@@ -14,6 +14,21 @@ namespace
 {
 constexpr double fallbackModelSampleRate = 48000.0;
 
+juce::String formatCalibrationText(bool hasInputCalibration, double inputCalibrationDbu,
+                                   bool hasOutputCalibration, double outputCalibrationDbu)
+{
+    if (hasInputCalibration && hasOutputCalibration)
+        return juce::String::formatted("Calibrated IN %.1f dBu | OUT %.1f dBu", inputCalibrationDbu, outputCalibrationDbu);
+
+    if (hasInputCalibration)
+        return juce::String::formatted("Calibrated IN %.1f dBu", inputCalibrationDbu);
+
+    if (hasOutputCalibration)
+        return juce::String::formatted("Calibrated OUT %.1f dBu", outputCalibrationDbu);
+
+    return "No calibration metadata in this NAM";
+}
+
 void ensureNAMArchitectureRegistration()
 {
     auto& registry = nam::ConfigParserRegistry::instance();
@@ -163,6 +178,40 @@ juce::String NAMModule::getLastError() const
     return lastError;
 }
 
+bool NAMModule::hasInputCalibration() const
+{
+    auto currentState = std::atomic_load(&activeModelState);
+    return currentState != nullptr && currentState->hasInputCalibration;
+}
+
+bool NAMModule::hasOutputCalibration() const
+{
+    auto currentState = std::atomic_load(&activeModelState);
+    return currentState != nullptr && currentState->hasOutputCalibration;
+}
+
+double NAMModule::getInputCalibrationDbu() const
+{
+    auto currentState = std::atomic_load(&activeModelState);
+    return currentState != nullptr ? currentState->inputCalibrationDbu : 0.0;
+}
+
+double NAMModule::getOutputCalibrationDbu() const
+{
+    auto currentState = std::atomic_load(&activeModelState);
+    return currentState != nullptr ? currentState->outputCalibrationDbu : 0.0;
+}
+
+juce::String NAMModule::getCalibrationSummaryText() const
+{
+    auto currentState = std::atomic_load(&activeModelState);
+    if (currentState == nullptr)
+        return {};
+
+    return formatCalibrationText(currentState->hasInputCalibration, currentState->inputCalibrationDbu,
+                                 currentState->hasOutputCalibration, currentState->outputCalibrationDbu);
+}
+
 juce::String NAMModule::describeArchitecture(const nlohmann::json& modelJson)
 {
     const auto architecture = juce::String(modelJson.value("architecture", "Unknown"));
@@ -214,11 +263,29 @@ std::shared_ptr<NAMModule::ModelState> NAMModule::buildModelState(const juce::Fi
         if (model->NumInputChannels() != 1 || model->NumOutputChannels() != 1)
             throw std::runtime_error("Only mono NAM captures are supported at the moment");
 
+        if (channel == 0)
+        {
+            nextState->hasInputCalibration = model->HasInputLevel();
+            nextState->hasOutputCalibration = model->HasOutputLevel();
+
+            if (nextState->hasInputCalibration)
+                nextState->inputCalibrationDbu = model->GetInputLevel();
+
+            if (nextState->hasOutputCalibration)
+                nextState->outputCalibrationDbu = model->GetOutputLevel();
+        }
+
         model->Reset(effectiveSampleRate, effectiveBlockSize);
         nextState->channelModels.push_back(std::move(model));
     }
 
-    nextState->statusText = juce::String::formatted("Model %.1f kHz - Host %.1f kHz - %d channel%s",
+    const auto calibrationText = formatCalibrationText(nextState->hasInputCalibration,
+                                                       nextState->inputCalibrationDbu,
+                                                       nextState->hasOutputCalibration,
+                                                       nextState->outputCalibrationDbu);
+
+    nextState->statusText = juce::String::formatted("%s | Model %.1f kHz | Host %.1f kHz | %d channel%s",
+                                                    calibrationText.toRawUTF8(),
                                                     modelSampleRate > 0.0 ? modelSampleRate / 1000.0
                                                                           : fallbackModelSampleRate / 1000.0,
                                                     effectiveSampleRate / 1000.0,

@@ -25,6 +25,11 @@ public:
     juce::String getArchitectureName() const;
     juce::String getModelStatusText() const;
     juce::String getLastError() const;
+    bool hasInputCalibration() const;
+    bool hasOutputCalibration() const;
+    double getInputCalibrationDbu() const;
+    double getOutputCalibrationDbu() const;
+    juce::String getCalibrationSummaryText() const;
 
 private:
     struct ModelState
@@ -34,6 +39,10 @@ private:
         juce::String fullPath;
         juce::String architecture;
         juce::String statusText;
+        bool hasInputCalibration = false;
+        bool hasOutputCalibration = false;
+        double inputCalibrationDbu = 0.0;
+        double outputCalibrationDbu = 0.0;
     };
 
     static juce::String describeArchitecture(const nlohmann::json& modelJson);
